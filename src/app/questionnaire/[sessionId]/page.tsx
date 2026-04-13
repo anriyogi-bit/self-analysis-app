@@ -33,13 +33,44 @@ export default function QuestionnairePage() {
           router.push('/');
           return;
         }
-        const session = await sessionRes.json();
-        setCurrentSection(session.current_section || 0);
 
         const responsesRes = await fetch(`/api/responses?sessionId=${sessionId}`);
         if (responsesRes.ok) {
           const responses = await responsesRes.json();
           setAllResponses(responses);
+
+          // 最後に回答した質問の次から再開
+          let lastSection = 0;
+          let lastQuestion = 0;
+
+          for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+            const sec = sections[sIdx];
+            const sectionResponses = responses[sec.id] || {};
+
+            for (let qIdx = 0; qIdx < sec.questions.length; qIdx++) {
+              const q = sec.questions[qIdx];
+              const answer = sectionResponses[q.id];
+
+              if (answer !== undefined && answer !== '' &&
+                  !(Array.isArray(answer) && answer.length === 0)) {
+                // この質問は回答済み、次の質問へ
+                if (qIdx < sec.questions.length - 1) {
+                  lastSection = sIdx;
+                  lastQuestion = qIdx + 1;
+                } else if (sIdx < sections.length - 1) {
+                  lastSection = sIdx + 1;
+                  lastQuestion = 0;
+                } else {
+                  // 全部回答済み
+                  lastSection = sections.length - 1;
+                  lastQuestion = sections[sections.length - 1].questions.length - 1;
+                }
+              }
+            }
+          }
+
+          setCurrentSection(lastSection);
+          setCurrentQuestion(lastQuestion);
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
